@@ -527,6 +527,15 @@ def load_kml(path):
 # 3. Map page (Leaflet in QWebEngineView)
 # ============================================================================
 
+LEAFLET_CSS_TAG = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">'
+LEAFLET_JS_TAG = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'
+
+
+def resource_dir():
+    """Folder holding bundled files (PyInstaller extracts to sys._MEIPASS)."""
+    return getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+
+
 MAP_HTML = r"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -697,6 +706,17 @@ class MapView(QWebEngineView):
         f = QFile(':/qtwebchannel/qwebchannel.js')
         js = bytes(f.readAll()).decode('utf-8') if f.open(QIODevice.ReadOnly) else ''
         html = MAP_HTML.replace('/*QWEBCHANNEL_JS*/', js)
+        # Use the bundled copy of Leaflet if present (works without the CDN)
+        vendor = os.path.join(resource_dir(), 'vendor')
+        try:
+            with open(os.path.join(vendor, 'leaflet.js'), encoding='utf-8') as fh:
+                ljs = fh.read()
+            with open(os.path.join(vendor, 'leaflet.css'), encoding='utf-8') as fh:
+                lcss = fh.read()
+            html = html.replace(LEAFLET_JS_TAG, '<script>' + ljs + '</script>')
+            html = html.replace(LEAFLET_CSS_TAG, '<style>' + lcss + '</style>')
+        except OSError:
+            pass                              # fall back to the CDN links
         self.setHtml(html, QUrl('https://gopro-map.local/'))
 
     def _loaded(self, ok):
